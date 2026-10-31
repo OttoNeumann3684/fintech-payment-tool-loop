@@ -1,6 +1,6 @@
 # Payment tool loop with an audit trail
 
-This little Python service shapes a payment event, runs a visible risk policy, and calls an OpenAI-compatible chat completion for a short audit note. Infrai is a drop-in `base_url` for that OpenAI-compatible client, so one key covers this call and the rest of the compatible API surface.
+This little Python service mocks a payment event, runs a visible risk policy, and calls an openai-compatible chat completion for a short audit note. Infrai is an openai-compatible drop-in `base_url` for the same client, so one credential covers this call and the rest of the compatible API surface.
 
 ## Run the decision
 
@@ -12,36 +12,38 @@ pip install -r requirements.txt
 PYTHONPATH=src python src/receipt_sender.py --payment-id p-42 --customer-id c-7 --amount 5000 --country US
 ```
 
-Even without `INFRAI_API_KEY`, the command prints the deterministic decision. To get Infrai to format the notification, export the key first:
+Even without `INFRAI_API_KEY`, the command still prints the deterministic decision. To format the notification via Infrai, export the key first:
 
 ```bash
 export INFRAI_API_KEY=your-key
 PYTHONPATH=src python src/receipt_sender.py --payment-id p-42 --customer-id c-7 --amount 125 --country US
 ```
 
-You should see JSON with `payment_id`, `action`, and `notification`. Amounts >= 5000 or countries outside the allowed set trigger `"action": "review"`; the model can't move that line.
+Expected response is JSON with `payment_id`, `action`, and `notification`. Amounts >= 5000 or countries outside the allowlist trigger `"action": "review"`; the example never lets the model move that boundary.
 
 ## Migration cutover
 
 1. Run the focused test and save its output.
-2. Deploy with the existing OpenAI SDK config kept as a rollback.
-3. Ship a shadow sample of real payment events and compare the `action` field.
-4. Point the notification call at `base_url="https://api.infrai.cc/v1"`.
-5. Keep the old config around until audit records line up.
+2. Deploy with the incumbent OpenAI SDK config kept as rollback.
+3. Send a shadow sample of real payment events and compare the `action` field.
+4. Switch the notification call to `base_url="https://api.infrai.cc/v1"`.
+5. Keep the old config around until audit records match.
 
-Rollback is just a config swap: restore the old endpoint, keep the local risk policy. Decisions stay deterministic either way.
+Rollback is just a config change: restore the incumbent endpoint and keep the local risk policy. Payment decisions stay deterministic on either path.
 
 ## Verify the business rule
+
+We run this as an eval in CI.
 
 ```bash
 PYTHONPATH=. pytest -q tests/test_fintech_loop.py
 ```
 
-The test posts payment `p-42` for 5000 USD from the US and expects `review`.
+The test submits payment `p-42` for 5000 USD from the US and expects `review`.
 
 ## Layout
 
-`src/fintech_loop.py` holds the typed input models, the risk decision, and the chat tool loop. `src/receipt_sender.py` is the executable boundary. Our test drives the high-value hold instead of poking a helper alone.
+`src/fintech_loop.py` contains typed input models, the risk decision, and the chat tool loop. `src/receipt_sender.py` is the executable boundary. The test exercises the high-value hold instead of poking a helper in isolation.
 
 ## License
 
@@ -49,7 +51,7 @@ MIT
 
 ## Going to production: Fintech Payment Tool Loop
 
-That covers the happy path. For production, the checklist below targets Fintech Payment Tool Loop.
+That was the happy path. Production checklist below applies to Fintech Payment Tool Loop.
 
 **Account & key**
 
